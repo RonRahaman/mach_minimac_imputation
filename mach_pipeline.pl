@@ -4,6 +4,19 @@ use File::Spec::Functions;
 use File::Basename;
 
 #############################################################################
+#  mach_pipeline.pl
+#  Version 0.4 (2014-10-19)
+#  Author: Ron Rahaman (rahaman@gmail.com)
+#
+#  A pipeline for imputing 1000 Genomes data using MaCH and minimac.
+#
+#  This pipeline imputes chromosomes in chunks and processes multiple chunks 
+#  in  parallel.  It is based on a tcsh script found here:
+#  http://genome.sph.umich.edu/wiki/Minimac:_1000_Genomes_Imputation_Cookbook
+#
+#############################################################################
+
+#############################################################################
 #                               Variables                                   #
 #############################################################################
 
@@ -103,7 +116,7 @@ wait_on_children(\@child_pids);
 print PIPELINE_LOG "...finished MaCH pipeline (part 1).\n";
 
 #############################################################################
-#                            PART 2:  Running minimac                       #
+#                            PART 3:  Running minimac                       #
 #############################################################################
 
 print PIPELINE_LOG "Beginning minimac pipeline (part 2)...\n";
