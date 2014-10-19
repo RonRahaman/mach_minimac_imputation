@@ -8,9 +8,12 @@ use File::Basename;
 #############################################################################
 
 my @chrList = (1..22, 'X', 'Y');   # List of chromosomes to process
+my $maxCPU = 20;                   # the maximum number of CPUs
+my $minimacThreads = 4;            # the number of threads for minimac-omp
+
 my $length = 400;                  # the "length" argument to ChunkChromosome
 my $overlap = 100;                 # the "overlap" argument to ChunkChromosome
-my $maxCPU = 20;                   # the maximum number of CPUs
+
 my $logDir = "logfiles";           # directory for logfiles
 my $pipelineLog = "pipeline.log";  # Logfile for this pipeline script
 
@@ -24,24 +27,35 @@ my $vcf = "~/hsdfiles/groups/Projects/GWAS/Bangladesh/1KG_phase3v5".
 
 my @child_pids = ();             # A list for the process ids (pids) of child threads
 
-unless (-d $logDir) {
-  mkdir $logDir or die "Unable to make directory for logfiles $!";
+if (-d $logDir) {
+  unlink glob(catfile($logDir, '*.log'));
+}
+else {
+  mkdir $logDir or die "Unable to make directory ($logDir) for logfiles: $!";
 }
 
 open (PIPELINE_LOG, ">", catfile($logDir, $pipelineLog)) 
-  or die "Unable to open the log file for this pipeline: $!";
+  or die "Unable to open the log file (".catfile($logDir, $pipelineLog).") for this pipeline: $!";
 
 #############################################################################
-#                            PART 1:  Running MaCH                          #
+#                 PART 1:  Running ChunkChromosome                          #
 #############################################################################
-
-print PIPELINE_LOG "Beginning MaCH pipeline (part 1)...\n";
 
 for my $chr (@chrList) {
 
   # Run ChunkChromosome for this chromosome
   my $log = catfile($logDir, "ChunkChromosome_chr${chr}.log");
   system("ChunkChromosome -d chr${chr}.dat -n $length -o $overlap 2>&1 > $log");
+
+}
+
+#############################################################################
+#                            PART 2:  Running MaCH                          #
+#############################################################################
+
+print PIPELINE_LOG "Beginning MaCH pipeline (part 1)...\n";
+
+for my $chr (@chrList) {
 
   # In the current directory, find all the files that were output from
   # ChunkChromosome.  Store the basename of these files in @chunks.
@@ -67,7 +81,7 @@ for my $chr (@chrList) {
 
     # If this is a child process, execute mach
     elsif ($pid == 0) {
-      $log = catfile($logDir, "mach_${chunk}.log");
+      my $log = catfile($logDir, "mach_${chunk}.log");
       my $command = "mach1 -d ${chunk} -p chr${chr}.ped --prefix ${chunk} ".
           "--rounds 20 --states 200 --phase --sample 5 2>&1 > $log &";
       print PIPELINE_LOG "  Executing '$command'\n";
@@ -114,14 +128,14 @@ for my $chr (@chrList) {
     # @child_pids
     if ($pid > 0) {
       push(@child_pids, $pid);
-      wait_on_children(\@child_pids) if (scalar(@child_pids) * 4 > $maxCPU);
+      wait_on_children(\@child_pids) if (scalar(@child_pids) * $minimacThreads > $maxCPU);
     }
 
     # If this is a child process, execute mach
     elsif ($pid == 0) {
-      my $log = catfile($logDir, "minimac_chunk${chunk}.log");
-      my $command = "minimac-omp --cpus 4 --vcfReference --refHaps ${vcf}  ".
-        "--haps ${chunk}.gz --snps ${chunk}.snps --rounds 5 ".
+      my $log = catfile($logDir, "minimac_${chunk}.log");
+      my $command = "minimac-omp --cpus ${minimacThreads} --vcfReference ".
+        "--refHaps ${vcf} --haps ${chunk}.gz --snps ${chunk}.snps --rounds 5 ".
         "--states 200  --probs --autoClip autoChunk-chr${chr} --rs ".
         "--snpAliases dbsnp134-merges.txt.gz  --prefix ${chunk}_minimac".
        " 2>&1 > $log &";
