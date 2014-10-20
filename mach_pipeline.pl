@@ -5,7 +5,7 @@ use File::Basename;
 
 #############################################################################
 #  mach_pipeline.pl
-#  Version 0.4 (2014-10-19)
+#  Version 0.4.1 (2014-10-20)
 #  Author: Ron Rahaman (rahaman@gmail.com)
 #
 #  A pipeline for imputing 1000 Genomes data using MaCH and minimac.
@@ -30,9 +30,6 @@ my $overlap = 100;                 # the "overlap" argument to ChunkChromosome
 my $logDir = "logfiles";           # directory for logfiles
 my $pipelineLog = "pipeline.log";  # Logfile for this pipeline script
 
-# Path to VCF file
-my $vcf = "~/hsdfiles/groups/Projects/GWAS/Bangladesh/1KG_phase3v5".
-  "reduced.ALL.chr22.phase3_shapeit2_mvncall_integrated_v5.20130502.genotypes.vcf";
 
 #############################################################################
 #                                  SETUP                                    #
@@ -132,6 +129,10 @@ for my $chr (@chrList) {
   for my $chunk (@chunks) {
 
     $chunk = basename($chunk, ".dat");
+
+    # Path to VCF file
+    my $vcf = "~/hsdfiles/groups/Projects/GWAS/Bangladesh/1KG_phase3v5".
+      "reduced.ALL.chr${chr}.phase3_shapeit2_mvncall_integrated_v5.20130502.genotypes.vcf";
 
     # Fork execution into parent and child processes.  fork() returns the
     # process ID of the child process to the parent; and '0' to the child.
