@@ -5,7 +5,7 @@ use File::Basename;
 
 #############################################################################
 #  mach_pipeline.pl
-#  Version 0.4.1 (2014-10-20)
+#  Version 0.4.2 (2014-10-21)
 #  Author: Ron Rahaman (rahaman@gmail.com)
 #
 #  A pipeline for imputing 1000 Genomes data using MaCH and minimac.
@@ -20,12 +20,12 @@ use File::Basename;
 #                               Variables                                   #
 #############################################################################
 
-my @chrList = (1..22, 'X', 'Y');   # List of chromosomes to process
-my $maxCPU = 20;                   # the maximum number of CPUs
+my @chrList = (1..22);   # List of chromosomes to process
+my $maxCPU = 24;                   # the maximum number of CPUs
 my $minimacThreads = 4;            # the number of threads for minimac-omp
 
-my $length = 400;                  # the "length" argument to ChunkChromosome
-my $overlap = 100;                 # the "overlap" argument to ChunkChromosome
+my $length = 2500;                  # the "length" argument to ChunkChromosome
+my $overlap = 500;                 # the "overlap" argument to ChunkChromosome
 
 my $logDir = "logfiles";           # directory for logfiles
 my $pipelineLog = "pipeline.log";  # Logfile for this pipeline script
@@ -92,7 +92,7 @@ for my $chr (@chrList) {
     # If this is a child process, execute mach
     elsif ($pid == 0) {
       my $log = catfile($logDir, "mach_${chunk}.log");
-      my $command = "mach1 -d ${chunk} -p chr${chr}.ped --prefix ${chunk} ".
+      my $command = "mach1 -d ${chunk}.dat -p chr${chr}.ped --prefix ${chunk} ".
           "--rounds 20 --states 200 --phase --sample 5 2>&1 > $log &";
       print PIPELINE_LOG "  Executing '$command'\n";
       exec($command);
@@ -131,8 +131,8 @@ for my $chr (@chrList) {
     $chunk = basename($chunk, ".dat");
 
     # Path to VCF file
-    my $vcf = "~/hsdfiles/groups/Projects/GWAS/Bangladesh/1KG_phase3v5".
-      "reduced.ALL.chr${chr}.phase3_shapeit2_mvncall_integrated_v5.20130502.genotypes.vcf";
+    my $vcf = "~/hsdfiles/groups/Projects/GWAS/Bangladesh/1KG_phase3v5/".
+      "reduced.ALL.chr${chr}.phase3_shapeit2_mvncall_integrated_v5.20130502.genotypes.vcf.gz";
 
     # Fork execution into parent and child processes.  fork() returns the
     # process ID of the child process to the parent; and '0' to the child.
@@ -149,7 +149,7 @@ for my $chr (@chrList) {
     elsif ($pid == 0) {
       my $log = catfile($logDir, "minimac_${chunk}.log");
       my $command = "minimac-omp --cpus ${minimacThreads} --vcfReference ".
-        "--refHaps ${vcf} --haps ${chunk}.gz --snps ${chunk}.snps --rounds 5 ".
+        "--refHaps ${vcf} --haps ${chunk}.gz --snps ${chunk}.dat.snps --rounds 5 ".
         "--states 200  --probs --autoClip autoChunk-chr${chr} --rs ".
         "--snpAliases dbsnp134-merges.txt.gz  --prefix ${chunk}_minimac".
        " 2>&1 > $log &";
