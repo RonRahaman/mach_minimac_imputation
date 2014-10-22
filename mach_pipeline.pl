@@ -5,7 +5,7 @@ use File::Basename;
 
 #############################################################################
 #  mach_pipeline.pl
-#  Version 0.4 (2014-10-19)
+#  Version 0.4.2 (2014-10-21)
 #  Author: Ron Rahaman (rahaman@gmail.com)
 #
 #  A pipeline for imputing 1000 Genomes data using MaCH and minimac.
@@ -20,25 +20,22 @@ use File::Basename;
 #                               Variables                                   #
 #############################################################################
 
-my @chrList = (1..22, 'X', 'Y');   # List of chromosomes to process
-my $maxCPU = 20;                   # the maximum number of CPUs
+my @chrList        = (1..22);      # List of chromosomes to process
+my $maxCPU         = 10;            # the maximum number of CPUs
 my $minimacThreads = 4;            # the number of threads for minimac-omp
 
-my $length = 400;                  # the "length" argument to ChunkChromosome
-my $overlap = 100;                 # the "overlap" argument to ChunkChromosome
+my $length = 2500;                  # the "length" argument to ChunkChromosome
+my $overlap = 500;                  # the "overlap" argument to ChunkChromosome
 
 my $logDir = "logfiles";           # directory for logfiles
 my $pipelineLog = "pipeline.log";  # Logfile for this pipeline script
 
-# Path to VCF file
-my $vcf = "~/hsdfiles/groups/Projects/GWAS/Bangladesh/1KG_phase3v5".
-  "reduced.ALL.chr22.phase3_shapeit2_mvncall_integrated_v5.20130502.genotypes.vcf";
 
 #############################################################################
 #                                  SETUP                                    #
 #############################################################################
 
-my @child_pids = ();             # A list for the process ids (pids) of child threads
+my @child_pids = ();               # A list for the process ids (pids) of child threads
 
 if (-d $logDir) {
   unlink glob(catfile($logDir, '*.log'));
@@ -80,6 +77,9 @@ for my $chr (@chrList) {
   for my $chunk (@chunks) {
 
     $chunk = basename($chunk, ".dat");
+    my $log = catfile($logDir, "mach_${chunk}.log");
+    my $command = "mach1 -d ${chunk}.dat -p chr${chr}.ped --prefix ${chunk} ".
+    "--rounds 20 --states 200 --phase --sample 5 2>&1 > $log &";
 
     # Fork execution into parent and child processes.  fork() returns the
     # process ID of the child process to the parent; and '0' to the child.
@@ -88,29 +88,29 @@ for my $chr (@chrList) {
     # If this is the parent process, store the process ID of the child in
     # @child_pids
     if ($pid > 0) {
+      print PIPELINE_LOG "    Process $pid is executing '$command'\n";
       push(@child_pids, $pid);
-      wait_on_children(\@child_pids) if (scalar(@child_pids) >= $maxCPU);
+      if (scalar(@child_pids) >= $maxCPU) {
+        print PIPELINE_LOG "    Waiting on ".scalar(@child_pids)." processes.\n";
+        wait_on_children(\@child_pids);
+      }
     }
 
     # If this is a child process, execute mach
     elsif ($pid == 0) {
-      my $log = catfile($logDir, "mach_${chunk}.log");
-      my $command = "mach1 -d ${chunk} -p chr${chr}.ped --prefix ${chunk} ".
-          "--rounds 20 --states 200 --phase --sample 5 2>&1 > $log &";
-      print PIPELINE_LOG "  Executing '$command'\n";
       exec($command);
       exit 1;
     }
 
     # If $pid < 0, an error has occured.
     else {
-      print PIPELINE_LOG "Error from mach_pipeline.pl: Forking error: $!\n";
       die "Error from mach_pipeline.pl: Forking error: $!\n"
     }
   }
 }
 
 # Important!  Wait for all children to finish at the end.
+print PIPELINE_LOG "    Waiting on ".scalar(@child_pids)." processes.\n";
 wait_on_children(\@child_pids);
 
 print PIPELINE_LOG "...finished MaCH pipeline (part 1).\n";
@@ -130,8 +130,19 @@ for my $chr (@chrList) {
 
   # Run minimac on each chunk, using multiple processes
   for my $chunk (@chunks) {
+    
+    # Path to VCF file
+    my $vcf = "~/hsdfiles/groups/Projects/GWAS/Bangladesh/1KG_phase3v5/".
+    "reduced.ALL.chr${chr}.phase3_shapeit2_mvncall_integrated_v5.20130502.genotypes.vcf.gz";
 
     $chunk = basename($chunk, ".dat");
+    my $log = catfile($logDir, "minimac_${chunk}.log");
+    my $command = "minimac-omp --cpus ${minimacThreads} --vcfReference ".
+    "--refHaps ${vcf} --haps ${chunk}.gz --snps ${chunk}.dat.snps --rounds 5 ".
+    "--states 200  --probs --autoClip autoChunk-chr${chr} --rs ".
+    "--snpAliases dbsnp134-merges.txt.gz  --prefix ${chunk}_minimac".
+    " 2>&1 > $log &";
+
 
     # Fork execution into parent and child processes.  fork() returns the
     # process ID of the child process to the parent; and '0' to the child.
@@ -140,19 +151,16 @@ for my $chr (@chrList) {
     # If this is the parent process, store the process ID of the child in
     # @child_pids
     if ($pid > 0) {
+      print PIPELINE_LOG "    Process $pid is executing '$command'\n";
       push(@child_pids, $pid);
-      wait_on_children(\@child_pids) if (scalar(@child_pids) * $minimacThreads > $maxCPU);
+      if (scalar(@child_pids) * $minimacThreads > $maxCPU) {
+        print PIPELINE_LOG "    Waiting on ".scalar(@child_pids)." processes.";
+        wait_on_children(\@child_pids);
+      }
     }
 
     # If this is a child process, execute mach
     elsif ($pid == 0) {
-      my $log = catfile($logDir, "minimac_${chunk}.log");
-      my $command = "minimac-omp --cpus ${minimacThreads} --vcfReference ".
-        "--refHaps ${vcf} --haps ${chunk}.gz --snps ${chunk}.snps --rounds 5 ".
-        "--states 200  --probs --autoClip autoChunk-chr${chr} --rs ".
-        "--snpAliases dbsnp134-merges.txt.gz  --prefix ${chunk}_minimac".
-       " 2>&1 > $log &";
-      print PIPELINE_LOG "  Executing '$command'\n";
       exec($command);
       exit 1;
     }
@@ -166,6 +174,7 @@ for my $chr (@chrList) {
 }
 
 # Important!  Wait for all children to finish at the end.
+print PIPELINE_LOG "    Waiting on ".scalar(@child_pids)." processes.\n";
 wait_on_children(\@child_pids);
 
 print PIPELINE_LOG "...finished minimac pipeline (part 2).\n";
