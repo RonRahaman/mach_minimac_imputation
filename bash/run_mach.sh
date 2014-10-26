@@ -24,8 +24,6 @@ for chr in ${chr_list[@]}; do
     chunk=$(basename $chunk .dat)
 
     log="${logdir}/mach_chr${chr}.log"
-    # mach1 -d ${chunk}.dat -p chr${chr}.ped --prefix ${chunk} \
-    #   --rounds 20 --states 200 --phase --sample 5 2>&1 | tee $log &
     mach1 -d ${chunk}.dat -p chr${chr}.ped --prefix ${chunk} \
       --rounds 20 --states 200 --phase --sample 5 2>&1 | tee $log &
 
