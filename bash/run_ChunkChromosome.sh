@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-length=400
-overlap=100
+length=100
+overlap=20
 logdir=logfiles
 
 chr_list=($(seq 1 22) 'X' 'Y')
-echo ${chr_list[@]}
 
 if [ ! -d $logfiles ]; then
   mkdir -p $logfiles
