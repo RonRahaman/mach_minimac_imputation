@@ -2,3 +2,5 @@
 *.dat
 *.snps
 *.swp
+*.ped
+*.sample*

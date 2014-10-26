@@ -5,7 +5,7 @@ killgroup() {
   kill 0
 }
 
-max_CPU=4
+max_CPU=3
 logdir=logfiles
 chr_list=($(seq 1 22) 'X' 'Y')
 
@@ -22,20 +22,27 @@ for chr in ${chr_list[@]}; do
 
   for chunk in ${chunk_list[@]}; do
     chunk=$(basename $chunk .dat)
-    echo $chunk
 
-    # log="${logdir}/mach_chr${chr}.log"
+    log="${logdir}/mach_chr${chr}.log"
+    # mach1 -d ${chunk}.dat -p chr${chr}.ped --prefix ${chunk} \
+    #   --rounds 20 --states 200 --phase --sample 5 2>&1 | tee $log &
+    mach1 -d ${chunk}.dat -p chr${chr}.ped --prefix ${chunk} \
+      --rounds 20 --states 200 --phase --sample 5 2>&1 | tee $log &
 
-    # $n_procs=$(( n_procs + 1 ))
+    n_procs=$(( n_procs + 1 ))
 
-    # if [ $n_procs -ge $max_CPU ]; then
-    #   echo "Waiting on $n_procs processes..."
-    #   wait
-    # fi
+    if [ $n_procs -ge $max_CPU ]; then
+      echo "Waiting on $n_procs processes..."
+      wait
+      n_procs=0
+    fi
 
   done
 
 done
+
+echo "Waiting on $n_procs processes..."
+wait
 
 
 
